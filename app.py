@@ -2,56 +2,40 @@ import streamlit as st
 import openai
 import base64
 from PIL import Image
-import io
-import os
+from io import BytesIO
 
-# Set API key from Streamlit secrets
+# Get API key from Streamlit secrets
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# Function to convert image to base64
-def encode_image(uploaded_file):
-    return base64.b64encode(uploaded_file.read()).decode('utf-8')
+# Convert image to base64
+def encode_image(image_file):
+    img = Image.open(image_file)
+    buffered = BytesIO()
+    img.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode()
 
-# Ask question about image using GPT-4 with Vision
-def ask_question_about_image(base64_image, user_question):
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {openai.api_key}"
-    }
-
+# Get caption using OpenAI Vision
+def get_caption(base64_image):
     response = openai.chat.completions.create(
         model="gpt-4-vision-preview",
         messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": user_question},
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{base64_image}"
-                        }
-                    }
-                ]
-            }
+            {"role": "user", "content": [
+                {"type": "text", "text": "Describe this image in detail."},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
+            ]}
         ],
-        max_tokens=500
+        max_tokens=300
     )
     return response.choices[0].message.content
 
 # Streamlit UI
-st.set_page_config(page_title="Image Q&A with GPT-4 Vision", layout="centered")
-st.title("🖼️ Ask Anything About Your Image")
+st.title("🧠 AI Image Describer with GPT-4")
+uploaded_file = st.file_uploader("📤 Upload an image", type=["png", "jpg", "jpeg"])
 
-uploaded_file = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
-question = st.text_input("What do you want to know about this image?")
-
-if uploaded_file and question:
-    with st.spinner("Analyzing image..."):
-        try:
-            base64_image = encode_image(uploaded_file)
-            answer = ask_question_about_image(base64_image, question)
-            st.success("Answer:")
-            st.write(answer)
-        except Exception as e:
-            st.error(f"Error: {e}")
+if uploaded_file:
+    st.image(uploaded_file, caption="Uploaded Image", use_column_width=True)
+    with st.spinner("Analyzing with GPT-4..."):
+        base64_img = encode_image(uploaded_file)
+        caption = get_caption(base64_img)
+        st.success("Caption Generated!")
+        st.markdown(f"**📝 Description:** {caption}")
