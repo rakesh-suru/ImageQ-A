@@ -4,7 +4,7 @@ import base64
 from PIL import Image
 from io import BytesIO
 
-# Load OpenAI API key from Streamlit secrets
+# Setup OpenAI API key from Streamlit secrets
 openai.api_key = st.secrets["openai_api_key"]
 
 # Function to encode image to base64
@@ -13,29 +13,25 @@ def encode_image_to_base64(image):
     image.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode()
 
-# Function to ask a question using GPT-3.5 (no image input)
+# Function to ask question using latest OpenAI SDK (v1+)
 def ask_question_about_image(base64_image, question):
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
+    client = openai.OpenAI()
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",  # use gpt-4 if you have access
         messages=[
-            {
-                "role": "system",
-                "content": "You are a helpful assistant. The user will ask a question related to an image, but since you cannot see images, give a general, helpful answer based only on the question."
-            },
-            {
-                "role": "user",
-                "content": question
-            }
+            {"role": "system", "content": "You are a helpful assistant. The user is asking a question about an image, but you can only answer based on the question text."},
+            {"role": "user", "content": question}
         ],
-        max_tokens=300
+        max_tokens=300,
+        temperature=0.7
     )
     return response.choices[0].message.content.strip()
 
-# ==== Streamlit UI ====
-st.title("Ask Anything About an Image 🖼️")
+# Streamlit UI
+st.title("Ask Anything About an Image 🧠")
 
-uploaded_file = st.file_uploader("Upload an Image", type=["png", "jpg", "jpeg"])
-question = st.text_input("Enter your question about the image")
+uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
+question = st.text_input("Ask a question about the image")
 
 if uploaded_file and question:
     image = Image.open(uploaded_file)
@@ -44,6 +40,6 @@ if uploaded_file and question:
     base64_image = encode_image_to_base64(image)
 
     if st.button("Get Answer"):
-        with st.spinner("Thinking..."):
+        with st.spinner("Generating answer..."):
             answer = ask_question_about_image(base64_image, question)
             st.success(answer)
